@@ -69,7 +69,7 @@ const Reports = () => {
     return { startDate, endDate: now };
   };
 
-  const filterByPeriod = (items: Array<{ date: Date }>) => {
+  const filterByPeriod = <T extends { date: Date }>(items: T[]): T[] => {
     const { startDate, endDate } = getDateRange();
     return items.filter(item => item.date >= startDate && item.date <= endDate);
   };
