@@ -1,54 +1,16 @@
 
-import { useState, useEffect } from 'react';
-import { collection, getDocs, query, where, orderBy, Timestamp } from 'firebase/firestore';
-import { db } from '../lib/firebase';
-import { Bill, Expense } from '../types';
+import { useState } from 'react';
+import { useBills } from '../hooks/useBills';
+import { useExpenses } from '../hooks/useExpenses';
 import Layout from '../components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { TrendingUp, TrendingDown, DollarSign, FileText, Calendar } from 'lucide-react';
-import { useToast } from '../hooks/use-toast';
+import { TrendingUp, TrendingDown, DollarSign, FileText } from 'lucide-react';
 
 const Reports = () => {
-  const [bills, setBills] = useState<Bill[]>([]);
-  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const { bills } = useBills();
+  const { expenses } = useExpenses();
   const [period, setPeriod] = useState<'daily' | 'weekly' | 'monthly'>('daily');
-  const { toast } = useToast();
-
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
-    try {
-      // Fetch bills
-      const billsSnapshot = await getDocs(collection(db, 'bills'));
-      const billsData = billsSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        date: doc.data().date?.toDate() || new Date(),
-        createdAt: doc.data().createdAt?.toDate() || new Date()
-      })) as Bill[];
-      setBills(billsData);
-
-      // Fetch expenses
-      const expensesSnapshot = await getDocs(collection(db, 'expenses'));
-      const expensesData = expensesSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        date: doc.data().date?.toDate() || new Date(),
-        createdAt: doc.data().createdAt?.toDate() || new Date()
-      })) as Expense[];
-      setExpenses(expensesData);
-    } catch (error) {
-      console.error('Error fetching data:', error);
-      toast({
-        title: "Error",
-        description: "Failed to fetch report data",
-        variant: "destructive"
-      });
-    }
-  };
 
   const getDateRange = () => {
     const now = new Date();

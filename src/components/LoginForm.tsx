@@ -1,6 +1,6 @@
 
 import { useState } from 'react';
-import { useAuth } from '../hooks/useAuth';
+import { useSupabaseAuth } from '../hooks/useSupabaseAuth';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -13,7 +13,7 @@ const LoginForm = () => {
   const [password, setPassword] = useState('');
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp } = useSupabaseAuth();
   const { toast } = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -39,7 +39,7 @@ const LoginForm = () => {
         await signUp(email, password);
         toast({
           title: "Success",
-          description: "Account created successfully!"
+          description: "Account created successfully! Please check your email for verification."
         });
       }
     } catch (error: any) {

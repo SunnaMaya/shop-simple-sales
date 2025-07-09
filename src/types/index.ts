@@ -32,6 +32,7 @@ export interface Bill {
   items: BillItem[];
   total: number;
   paymentMethod: 'Cash' | 'Credit' | 'Digital';
+  status?: 'paid' | 'unpaid' | 'partial';
   createdAt: Date;
 }
 

@@ -1,42 +1,12 @@
 
-import { useState, useEffect } from 'react';
-import { collection, getDocs, orderBy, query } from 'firebase/firestore';
-import { db } from '../lib/firebase';
-import { Bill } from '../types';
+import { useBills } from '../hooks/useBills';
 import Layout from '../components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { FileText, Calendar, User, CreditCard } from 'lucide-react';
-import { useToast } from '../hooks/use-toast';
 
 const Bills = () => {
-  const [bills, setBills] = useState<Bill[]>([]);
-  const { toast } = useToast();
-
-  useEffect(() => {
-    fetchBills();
-  }, []);
-
-  const fetchBills = async () => {
-    try {
-      const q = query(collection(db, 'bills'), orderBy('createdAt', 'desc'));
-      const querySnapshot = await getDocs(q);
-      const billsData = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        date: doc.data().date?.toDate() || new Date(),
-        createdAt: doc.data().createdAt?.toDate() || new Date()
-      })) as Bill[];
-      setBills(billsData);
-    } catch (error) {
-      console.error('Error fetching bills:', error);
-      toast({
-        title: "Error",
-        description: "Failed to fetch bills",
-        variant: "destructive"
-      });
-    }
-  };
+  const { bills, loading } = useBills();
 
   const getPaymentMethodColor = (method: string) => {
     switch (method) {
@@ -50,6 +20,29 @@ const Bills = () => {
         return 'bg-gray-100 text-gray-800';
     }
   };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'paid':
+        return 'bg-green-100 text-green-800';
+      case 'unpaid':
+        return 'bg-red-100 text-red-800';
+      case 'partial':
+        return 'bg-yellow-100 text-yellow-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  if (loading) {
+    return (
+      <Layout title="Bills">
+        <div className="flex items-center justify-center py-12">
+          <div className="text-lg">Loading bills...</div>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout title="Bills">
@@ -71,11 +64,18 @@ const Bills = () => {
                     <FileText className="h-5 w-5 text-orange-600" />
                     Bill #{bill.id.slice(-8)}
                   </CardTitle>
-                  <div className="text-right">
+                  <div className="text-right flex flex-col gap-2">
                     <p className="text-xl font-bold text-green-600">${bill.total.toFixed(2)}</p>
-                    <Badge className={getPaymentMethodColor(bill.paymentMethod)}>
-                      {bill.paymentMethod}
-                    </Badge>
+                    <div className="flex gap-2">
+                      <Badge className={getPaymentMethodColor(bill.paymentMethod)}>
+                        {bill.paymentMethod}
+                      </Badge>
+                      {bill.status && (
+                        <Badge className={getStatusColor(bill.status)}>
+                          {bill.status}
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                 </div>
               </CardHeader>
@@ -83,7 +83,7 @@ const Bills = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="flex items-center gap-2 text-sm text-gray-600">
                     <User className="h-4 w-4" />
-                    <span>{bill.customerName}</span>
+                    <span>{bill.customerName || 'Walk-in Customer'}</span>
                   </div>
                   <div className="flex items-center gap-2 text-sm text-gray-600">
                     <Calendar className="h-4 w-4" />

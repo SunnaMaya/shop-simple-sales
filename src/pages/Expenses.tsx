@@ -1,8 +1,6 @@
 
-import { useState, useEffect } from 'react';
-import { collection, addDoc, getDocs, orderBy, query } from 'firebase/firestore';
-import { db } from '../lib/firebase';
-import { Expense } from '../types';
+import { useState } from 'react';
+import { useExpenses } from '../hooks/useExpenses';
 import Layout from '../components/Layout';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -13,7 +11,7 @@ import { Plus, DollarSign, Calendar } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 
 const Expenses = () => {
-  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const { expenses, loading, addExpense } = useExpenses();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
@@ -21,31 +19,6 @@ const Expenses = () => {
     date: new Date().toISOString().split('T')[0]
   });
   const { toast } = useToast();
-
-  useEffect(() => {
-    fetchExpenses();
-  }, []);
-
-  const fetchExpenses = async () => {
-    try {
-      const q = query(collection(db, 'expenses'), orderBy('date', 'desc'));
-      const querySnapshot = await getDocs(q);
-      const expensesData = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        date: doc.data().date?.toDate() || new Date(),
-        createdAt: doc.data().createdAt?.toDate() || new Date()
-      })) as Expense[];
-      setExpenses(expensesData);
-    } catch (error) {
-      console.error('Error fetching expenses:', error);
-      toast({
-        title: "Error",
-        description: "Failed to fetch expenses",
-        variant: "destructive"
-      });
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,14 +32,12 @@ const Expenses = () => {
     }
 
     try {
-      const expenseData = {
+      await addExpense({
         title: formData.title,
         amount: parseFloat(formData.amount),
-        date: new Date(formData.date),
-        createdAt: new Date()
-      };
+        date: new Date(formData.date)
+      });
 
-      await addDoc(collection(db, 'expenses'), expenseData);
       toast({
         title: "Success",
         description: "Expense added successfully!"
@@ -78,7 +49,6 @@ const Expenses = () => {
         date: new Date().toISOString().split('T')[0]
       });
       setIsDialogOpen(false);
-      fetchExpenses();
     } catch (error) {
       console.error('Error saving expense:', error);
       toast({
@@ -92,6 +62,16 @@ const Expenses = () => {
   const getTotalExpenses = () => {
     return expenses.reduce((total, expense) => total + expense.amount, 0);
   };
+
+  if (loading) {
+    return (
+      <Layout title="Expenses">
+        <div className="flex items-center justify-center py-12">
+          <div className="text-lg">Loading expenses...</div>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout title="Expenses">

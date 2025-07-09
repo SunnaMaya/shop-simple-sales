@@ -1,6 +1,6 @@
 
 import { ReactNode } from 'react';
-import { useAuth } from '../hooks/useAuth';
+import { useSupabaseAuth } from '../hooks/useSupabaseAuth';
 import { Button } from './ui/button';
 import { LogOut, Store } from 'lucide-react';
 
@@ -10,7 +10,7 @@ interface LayoutProps {
 }
 
 const Layout = ({ children, title }: LayoutProps) => {
-  const { logout, user } = useAuth();
+  const { logout, user } = useSupabaseAuth();
 
   const handleLogout = async () => {
     try {

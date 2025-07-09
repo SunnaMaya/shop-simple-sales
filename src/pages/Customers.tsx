@@ -1,8 +1,6 @@
 
-import { useState, useEffect } from 'react';
-import { collection, addDoc, getDocs, updateDoc, doc } from 'firebase/firestore';
-import { db } from '../lib/firebase';
-import { Customer } from '../types';
+import { useState } from 'react';
+import { useCustomers } from '../hooks/useCustomers';
 import Layout from '../components/Layout';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -14,7 +12,7 @@ import { Plus, Users, Phone, MapPin, CreditCard } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 
 const Customers = () => {
-  const [customers, setCustomers] = useState<Customer[]>([]);
+  const { customers, loading, addCustomer } = useCustomers();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
@@ -22,29 +20,6 @@ const Customers = () => {
     address: ''
   });
   const { toast } = useToast();
-
-  useEffect(() => {
-    fetchCustomers();
-  }, []);
-
-  const fetchCustomers = async () => {
-    try {
-      const querySnapshot = await getDocs(collection(db, 'customers'));
-      const customersData = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        createdAt: doc.data().createdAt?.toDate() || new Date()
-      })) as Customer[];
-      setCustomers(customersData);
-    } catch (error) {
-      console.error('Error fetching customers:', error);
-      toast({
-        title: "Error",
-        description: "Failed to fetch customers",
-        variant: "destructive"
-      });
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,15 +33,13 @@ const Customers = () => {
     }
 
     try {
-      const customerData = {
+      await addCustomer({
         name: formData.name,
         phone: formData.phone,
         address: formData.address,
-        credit: 0,
-        createdAt: new Date()
-      };
+        credit: 0
+      });
 
-      await addDoc(collection(db, 'customers'), customerData);
       toast({
         title: "Success",
         description: "Customer added successfully!"
@@ -74,7 +47,6 @@ const Customers = () => {
 
       setFormData({ name: '', phone: '', address: '' });
       setIsDialogOpen(false);
-      fetchCustomers();
     } catch (error) {
       console.error('Error saving customer:', error);
       toast({
@@ -84,6 +56,16 @@ const Customers = () => {
       });
     }
   };
+
+  if (loading) {
+    return (
+      <Layout title="Customers">
+        <div className="flex items-center justify-center py-12">
+          <div className="text-lg">Loading customers...</div>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout title="Customers">
