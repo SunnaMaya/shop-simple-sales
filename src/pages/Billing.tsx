@@ -1,11 +1,11 @@
 
 import { useState, useEffect } from 'react';
-import { collection, addDoc, getDocs, updateDoc, doc } from 'firebase/firestore';
-import { db } from '../lib/firebase';
-import { Product, Customer, BillItem } from '../types';
+import { useProducts } from '../hooks/useProducts';
+import { useCustomers } from '../hooks/useCustomers';
+import { useBills } from '../hooks/useBills';
+import { BillItem } from '../types';
 import Layout from '../components/Layout';
 import { Button } from '../components/ui/button';
-import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
@@ -14,45 +14,16 @@ import { Plus, Minus, ShoppingCart, Trash2, Receipt } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 
 const Billing = () => {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [customers, setCustomers] = useState<Customer[]>([]);
+  const { products, loading: productsLoading } = useProducts();
+  const { customers, loading: customersLoading } = useCustomers();
+  const { addBill } = useBills();
   const [selectedCustomer, setSelectedCustomer] = useState<string>('');
   const [billItems, setBillItems] = useState<BillItem[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'Credit' | 'Digital'>('Cash');
+  const [isCreatingBill, setIsCreatingBill] = useState(false);
   const { toast } = useToast();
 
-  useEffect(() => {
-    fetchProducts();
-    fetchCustomers();
-  }, []);
-
-  const fetchProducts = async () => {
-    try {
-      const querySnapshot = await getDocs(collection(db, 'products'));
-      const productsData = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Product[];
-      setProducts(productsData);
-    } catch (error) {
-      console.error('Error fetching products:', error);
-    }
-  };
-
-  const fetchCustomers = async () => {
-    try {
-      const querySnapshot = await getDocs(collection(db, 'customers'));
-      const customersData = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Customer[];
-      setCustomers(customersData);
-    } catch (error) {
-      console.error('Error fetching customers:', error);
-    }
-  };
-
-  const addProductToBill = (product: Product) => {
+  const addProductToBill = (product: any) => {
     const existingItem = billItems.find(item => item.productId === product.id);
     if (existingItem) {
       if (existingItem.qty < product.stock) {
@@ -128,41 +99,22 @@ const Billing = () => {
       return;
     }
 
+    setIsCreatingBill(true);
     try {
       const total = calculateTotal();
       const customer = customers.find(c => c.id === selectedCustomer);
       
       const billData = {
-        customerId: selectedCustomer || null,
+        customerId: selectedCustomer || undefined,
         customerName: customer?.name || 'Walk-in Customer',
         date: new Date(),
         items: billItems,
         total,
         paymentMethod,
-        createdAt: new Date()
+        status: 'paid' as const
       };
 
-      await addDoc(collection(db, 'bills'), billData);
-
-      // Update product stock
-      for (const item of billItems) {
-        const product = products.find(p => p.id === item.productId);
-        if (product) {
-          await updateDoc(doc(db, 'products', item.productId), {
-            stock: product.stock - item.qty
-          });
-        }
-      }
-
-      // Update customer credit if payment is on credit
-      if (paymentMethod === 'Credit' && selectedCustomer) {
-        const customer = customers.find(c => c.id === selectedCustomer);
-        if (customer) {
-          await updateDoc(doc(db, 'customers', selectedCustomer), {
-            credit: customer.credit + total
-          });
-        }
-      }
+      await addBill(billData);
 
       toast({
         title: "Success",
@@ -173,7 +125,6 @@ const Billing = () => {
       setBillItems([]);
       setSelectedCustomer('');
       setPaymentMethod('Cash');
-      fetchProducts(); // Refresh to get updated stock
     } catch (error) {
       console.error('Error creating bill:', error);
       toast({
@@ -181,8 +132,21 @@ const Billing = () => {
         description: "Failed to create bill",
         variant: "destructive"
       });
+    } finally {
+      setIsCreatingBill(false);
     }
   };
+
+  if (productsLoading || customersLoading) {
+    return (
+      <Layout title="Create Bill">
+        <div className="flex items-center justify-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <div className="ml-3 text-lg">Loading...</div>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout title="Create Bill">
@@ -190,29 +154,37 @@ const Billing = () => {
         {/* Products Section */}
         <div className="space-y-4">
           <h3 className="text-lg font-semibold">Available Products</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-96 overflow-y-auto">
-            {products.filter(p => p.stock > 0).map((product) => (
-              <Card key={product.id} className="cursor-pointer hover:shadow-md transition-shadow"
-                    onClick={() => addProductToBill(product)}>
-                <CardContent className="p-3">
-                  <div className="flex justify-between items-start mb-2">
-                    <h4 className="font-medium text-sm">{product.productName}</h4>
-                    <Badge variant="secondary" className="text-xs">
-                      Stock: {product.stock}
-                    </Badge>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-lg font-bold text-green-600">
-                      ${product.retailPrice.toFixed(2)}
-                    </span>
-                    <Button size="sm" className="h-6 w-6 p-0">
-                      <Plus className="h-3 w-3" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+          {products.length === 0 ? (
+            <Card className="text-center py-8">
+              <CardContent>
+                <p className="text-gray-500">No products available. Add some products first.</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-96 overflow-y-auto">
+              {products.filter(p => p.stock > 0).map((product) => (
+                <Card key={product.id} className="cursor-pointer hover:shadow-md transition-shadow"
+                      onClick={() => addProductToBill(product)}>
+                  <CardContent className="p-3">
+                    <div className="flex justify-between items-start mb-2">
+                      <h4 className="font-medium text-sm">{product.productName}</h4>
+                      <Badge variant="secondary" className="text-xs">
+                        Stock: {product.stock}
+                      </Badge>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-lg font-bold text-green-600">
+                        ${product.retailPrice.toFixed(2)}
+                      </span>
+                      <Button size="sm" className="h-6 w-6 p-0">
+                        <Plus className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Bill Section */}
@@ -313,8 +285,12 @@ const Billing = () => {
                     </div>
                   </div>
                   
-                  <Button onClick={createBill} className="w-full bg-purple-600 hover:bg-purple-700">
-                    Create Bill
+                  <Button 
+                    onClick={createBill} 
+                    className="w-full bg-purple-600 hover:bg-purple-700"
+                    disabled={isCreatingBill}
+                  >
+                    {isCreatingBill ? 'Creating...' : 'Create Bill'}
                   </Button>
                 </>
               )}

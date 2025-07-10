@@ -2,9 +2,16 @@
 import { Link } from 'react-router-dom';
 import { Card, CardContent } from './ui/card';
 import { Package, Users, FileText, DollarSign, TrendingUp, Plus } from 'lucide-react';
+import { useProducts } from '../hooks/useProducts';
+import { useCustomers } from '../hooks/useCustomers';
+import { useBills } from '../hooks/useBills';
 import Layout from './Layout';
 
 const Dashboard = () => {
+  const { products, loading: productsLoading } = useProducts();
+  const { customers, loading: customersLoading } = useCustomers();
+  const { bills, loading: billsLoading } = useBills();
+
   const menuItems = [
     {
       title: 'Products',
@@ -50,6 +57,10 @@ const Dashboard = () => {
     }
   ];
 
+  // Calculate totals
+  const totalRevenue = bills.reduce((sum, bill) => sum + bill.total, 0);
+  const lowStockProducts = products.filter(p => p.stock < 10).length;
+
   return (
     <Layout title="Dashboard">
       <div className="space-y-8">
@@ -83,23 +94,57 @@ const Dashboard = () => {
           <h3 className="text-xl font-semibold text-gray-900 mb-4">Quick Overview</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="bg-white p-4 rounded-lg shadow-sm border">
-              <div className="text-2xl font-bold text-blue-600">0</div>
+              <div className="text-2xl font-bold text-blue-600">
+                {productsLoading ? '...' : products.length}
+              </div>
               <div className="text-sm text-gray-600">Total Products</div>
+              {lowStockProducts > 0 && (
+                <div className="text-xs text-red-600 mt-1">
+                  {lowStockProducts} low stock
+                </div>
+              )}
             </div>
             <div className="bg-white p-4 rounded-lg shadow-sm border">
-              <div className="text-2xl font-bold text-green-600">0</div>
+              <div className="text-2xl font-bold text-green-600">
+                {customersLoading ? '...' : customers.length}
+              </div>
               <div className="text-sm text-gray-600">Total Customers</div>
             </div>
             <div className="bg-white p-4 rounded-lg shadow-sm border">
-              <div className="text-2xl font-bold text-orange-600">0</div>
+              <div className="text-2xl font-bold text-orange-600">
+                {billsLoading ? '...' : bills.length}
+              </div>
               <div className="text-sm text-gray-600">Total Bills</div>
             </div>
             <div className="bg-white p-4 rounded-lg shadow-sm border">
-              <div className="text-2xl font-bold text-purple-600">$0</div>
-              <div className="text-sm text-gray-600">Revenue</div>
+              <div className="text-2xl font-bold text-purple-600">
+                {billsLoading ? '...' : `$${totalRevenue.toFixed(2)}`}
+              </div>
+              <div className="text-sm text-gray-600">Total Revenue</div>
             </div>
           </div>
         </div>
+
+        {/* Recent Activity */}
+        {!billsLoading && bills.length > 0 && (
+          <div className="mt-8">
+            <h3 className="text-xl font-semibold text-gray-900 mb-4">Recent Bills</h3>
+            <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
+              {bills.slice(0, 5).map((bill) => (
+                <div key={bill.id} className="p-4 border-b last:border-b-0 flex justify-between items-center">
+                  <div>
+                    <p className="font-medium">{bill.customerName || 'Walk-in Customer'}</p>
+                    <p className="text-sm text-gray-600">{bill.date.toLocaleDateString()}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-bold text-green-600">${bill.total.toFixed(2)}</p>
+                    <p className="text-sm text-gray-600">{bill.paymentMethod}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </Layout>
   );
