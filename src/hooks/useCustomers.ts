@@ -27,6 +27,8 @@ export const useCustomers = () => {
         phone: customer.phone,
         address: customer.address,
         credit: customer.credit,
+        totalSpent: customer.total_spent || 0,
+        totalBills: customer.total_bills || 0,
         createdAt: new Date(customer.created_at)
       }))
 
@@ -38,7 +40,7 @@ export const useCustomers = () => {
     }
   }
 
-  const addCustomer = async (customerData: Omit<Customer, 'id' | 'createdAt'>) => {
+  const addCustomer = async (customerData: Omit<Customer, 'id' | 'createdAt' | 'totalSpent' | 'totalBills'>) => {
     if (!user) throw new Error('User must be authenticated')
 
     const { data, error } = await supabase
@@ -48,6 +50,8 @@ export const useCustomers = () => {
         phone: customerData.phone,
         address: customerData.address,
         credit: customerData.credit || 0,
+        total_spent: 0,
+        total_bills: 0,
         user_id: user.id
       })
       .select()
@@ -61,6 +65,8 @@ export const useCustomers = () => {
       phone: data.phone,
       address: data.address,
       credit: data.credit,
+      totalSpent: data.total_spent || 0,
+      totalBills: data.total_bills || 0,
       createdAt: new Date(data.created_at)
     }
 
@@ -84,6 +90,50 @@ export const useCustomers = () => {
     ))
   }
 
+  const updateCustomerSpending = async (customerId: string, billAmount: number) => {
+    if (!user || !customerId) return
+
+    try {
+      // Get current customer data
+      const { data: currentCustomer, error: fetchError } = await supabase
+        .from('customers')
+        .select('total_spent, total_bills, credit')
+        .eq('id', customerId)
+        .eq('user_id', user.id)
+        .single()
+
+      if (fetchError) throw fetchError
+
+      const newTotalSpent = (currentCustomer.total_spent || 0) + billAmount
+      const newTotalBills = (currentCustomer.total_bills || 0) + 1
+
+      // Update customer spending
+      const { error: updateError } = await supabase
+        .from('customers')
+        .update({
+          total_spent: newTotalSpent,
+          total_bills: newTotalBills
+        })
+        .eq('id', customerId)
+        .eq('user_id', user.id)
+
+      if (updateError) throw updateError
+
+      // Update local state
+      setCustomers(prev => prev.map(customer => 
+        customer.id === customerId 
+          ? { 
+              ...customer, 
+              totalSpent: newTotalSpent,
+              totalBills: newTotalBills
+            } 
+          : customer
+      ))
+    } catch (error) {
+      console.error('Error updating customer spending:', error)
+    }
+  }
+
   useEffect(() => {
     fetchCustomers()
   }, [user])
@@ -93,6 +143,7 @@ export const useCustomers = () => {
     loading,
     addCustomer,
     updateCustomer,
+    updateCustomerSpending,
     refetch: fetchCustomers
   }
 }

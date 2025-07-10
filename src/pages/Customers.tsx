@@ -8,7 +8,7 @@ import { Label } from '../components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { Badge } from '../components/ui/badge';
-import { Plus, Users, Phone, MapPin, CreditCard } from 'lucide-react';
+import { Plus, Users, Phone, MapPin, CreditCard, DollarSign, Receipt } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 
 const Customers = () => {
@@ -141,14 +141,38 @@ const Customers = () => {
                     {customer.address}
                   </div>
                 )}
-                <div className="flex items-center justify-between pt-2">
-                  <div className="flex items-center gap-2">
-                    <CreditCard className="h-4 w-4 text-orange-600" />
-                    <span className="text-sm">Credit:</span>
+                
+                {/* Customer Spending Stats */}
+                <div className="space-y-2 pt-2 border-t">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <DollarSign className="h-4 w-4 text-blue-600" />
+                      <span className="text-sm">Total Spent:</span>
+                    </div>
+                    <Badge variant="outline" className="bg-blue-50">
+                      ${(customer.totalSpent || 0).toFixed(2)}
+                    </Badge>
                   </div>
-                  <Badge variant={customer.credit > 0 ? "destructive" : "default"}>
-                    ${customer.credit.toFixed(2)}
-                  </Badge>
+                  
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Receipt className="h-4 w-4 text-purple-600" />
+                      <span className="text-sm">Total Bills:</span>
+                    </div>
+                    <Badge variant="outline" className="bg-purple-50">
+                      {customer.totalBills || 0}
+                    </Badge>
+                  </div>
+                  
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <CreditCard className="h-4 w-4 text-orange-600" />
+                      <span className="text-sm">Credit:</span>
+                    </div>
+                    <Badge variant={customer.credit > 0 ? "destructive" : "default"}>
+                      ${customer.credit.toFixed(2)}
+                    </Badge>
+                  </div>
                 </div>
               </CardContent>
             </Card>

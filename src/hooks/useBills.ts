@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client'
 import { useSupabaseAuth } from './useSupabaseAuth'
 import { Bill, BillItem } from '../types'
 
-export const useBills = () => {
+export const useBills = (updateCustomerSpending?: (customerId: string, amount: number) => Promise<void>) => {
   const [bills, setBills] = useState<Bill[]>([])
   const [loading, setLoading] = useState(true)
   const { user } = useSupabaseAuth()
@@ -98,6 +98,11 @@ export const useBills = () => {
           quantity_sold: item.qty
         })
         if (stockError) console.error('Error updating stock:', stockError)
+      }
+
+      // Update customer spending if customer is selected
+      if (billData.customerId && updateCustomerSpending) {
+        await updateCustomerSpending(billData.customerId, billData.total)
       }
 
       const newBill: Bill = {

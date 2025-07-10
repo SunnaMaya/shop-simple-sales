@@ -14,6 +14,8 @@ export interface Customer {
   phone: string;
   address: string;
   credit: number;
+  totalSpent?: number;
+  totalBills?: number;
   createdAt: Date;
 }
 

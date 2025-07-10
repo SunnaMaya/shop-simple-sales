@@ -1,10 +1,10 @@
-
 import { useState, useEffect } from 'react';
 import { useProducts } from '../hooks/useProducts';
 import { useCustomers } from '../hooks/useCustomers';
 import { useBills } from '../hooks/useBills';
-import { BillItem } from '../types';
+import { BillItem, Bill } from '../types';
 import Layout from '../components/Layout';
+import BillReceipt from '../components/BillReceipt';
 import { Button } from '../components/ui/button';
 import { Label } from '../components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -15,12 +15,14 @@ import { useToast } from '../hooks/use-toast';
 
 const Billing = () => {
   const { products, loading: productsLoading } = useProducts();
-  const { customers, loading: customersLoading } = useCustomers();
-  const { addBill } = useBills();
+  const { customers, loading: customersLoading, updateCustomerSpending } = useCustomers();
+  const { addBill } = useBills(updateCustomerSpending);
   const [selectedCustomer, setSelectedCustomer] = useState<string>('');
   const [billItems, setBillItems] = useState<BillItem[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'Credit' | 'Digital'>('Cash');
   const [isCreatingBill, setIsCreatingBill] = useState(false);
+  const [showReceipt, setShowReceipt] = useState(false);
+  const [currentBill, setCurrentBill] = useState<Bill | null>(null);
   const { toast } = useToast();
 
   const addProductToBill = (product: any) => {
@@ -114,12 +116,16 @@ const Billing = () => {
         status: 'paid' as const
       };
 
-      await addBill(billData);
+      const createdBill = await addBill(billData);
 
       toast({
         title: "Success",
         description: "Bill created successfully!"
       });
+
+      // Show receipt
+      setCurrentBill(createdBill);
+      setShowReceipt(true);
 
       // Reset form
       setBillItems([]);
@@ -207,6 +213,11 @@ const Billing = () => {
                       {customers.map((customer) => (
                         <SelectItem key={customer.id} value={customer.id}>
                           {customer.name} - {customer.phone}
+                          {customer.totalSpent && customer.totalSpent > 0 && (
+                            <span className="text-xs text-gray-500 ml-2">
+                              (Spent: ${customer.totalSpent.toFixed(2)})
+                            </span>
+                          )}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -298,6 +309,17 @@ const Billing = () => {
           </Card>
         </div>
       </div>
+
+      {/* Receipt Modal */}
+      {showReceipt && currentBill && (
+        <BillReceipt 
+          bill={currentBill} 
+          onClose={() => {
+            setShowReceipt(false);
+            setCurrentBill(null);
+          }} 
+        />
+      )}
     </Layout>
   );
 };
