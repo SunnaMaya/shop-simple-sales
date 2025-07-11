@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useProducts } from '../hooks/useProducts';
 import { useCustomers } from '../hooks/useCustomers';
@@ -116,7 +117,9 @@ const Billing = () => {
         status: 'paid' as const
       };
 
+      console.log('Creating bill with data:', billData);
       const createdBill = await addBill(billData);
+      console.log('Bill created successfully:', createdBill);
 
       toast({
         title: "Success",
