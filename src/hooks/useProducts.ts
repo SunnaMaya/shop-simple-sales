@@ -90,6 +90,20 @@ export const useProducts = () => {
     ))
   }
 
+  const deleteProduct = async (id: string) => {
+    if (!user) throw new Error('User must be authenticated')
+
+    const { error } = await supabase
+      .from('products')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', user.id)
+
+    if (error) throw error
+
+    setProducts(prev => prev.filter(product => product.id !== id))
+  }
+
   useEffect(() => {
     fetchProducts()
   }, [user])
@@ -99,6 +113,7 @@ export const useProducts = () => {
     loading,
     addProduct,
     updateProduct,
+    deleteProduct,
     refetch: fetchProducts
   }
 }

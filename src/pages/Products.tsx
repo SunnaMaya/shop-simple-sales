@@ -7,13 +7,16 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '../components/ui/alert-dialog';
 import { Badge } from '../components/ui/badge';
-import { Plus, Package, DollarSign, TrendingUp, AlertTriangle } from 'lucide-react';
+import { Plus, Package, DollarSign, TrendingUp, AlertTriangle, Edit, Trash2 } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
+import { Product } from '../types';
 
 const Products = () => {
-  const { products, loading, addProduct, updateProduct } = useProducts();
+  const { products, loading, addProduct, updateProduct, deleteProduct } = useProducts();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [formData, setFormData] = useState({
     productName: '',
     purchasePrice: '',
@@ -21,6 +24,36 @@ const Products = () => {
     stock: ''
   });
   const { toast } = useToast();
+
+  const resetForm = () => {
+    setFormData({
+      productName: '',
+      purchasePrice: '',
+      retailPrice: '',
+      stock: ''
+    });
+    setEditingProduct(null);
+  };
+
+  const handleOpenDialog = (product?: Product) => {
+    if (product) {
+      setEditingProduct(product);
+      setFormData({
+        productName: product.productName,
+        purchasePrice: product.purchasePrice.toString(),
+        retailPrice: product.retailPrice.toString(),
+        stock: product.stock.toString()
+      });
+    } else {
+      resetForm();
+    }
+    setIsDialogOpen(true);
+  };
+
+  const handleCloseDialog = () => {
+    setIsDialogOpen(false);
+    resetForm();
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,30 +67,53 @@ const Products = () => {
     }
 
     try {
-      await addProduct({
-        productName: formData.productName,
-        purchasePrice: parseFloat(formData.purchasePrice),
-        retailPrice: parseFloat(formData.retailPrice),
-        stock: parseInt(formData.stock)
-      });
+      if (editingProduct) {
+        await updateProduct(editingProduct.id, {
+          productName: formData.productName,
+          purchasePrice: parseFloat(formData.purchasePrice),
+          retailPrice: parseFloat(formData.retailPrice),
+          stock: parseInt(formData.stock)
+        });
+        toast({
+          title: "Success",
+          description: "Product updated successfully!"
+        });
+      } else {
+        await addProduct({
+          productName: formData.productName,
+          purchasePrice: parseFloat(formData.purchasePrice),
+          retailPrice: parseFloat(formData.retailPrice),
+          stock: parseInt(formData.stock)
+        });
+        toast({
+          title: "Success",
+          description: "Product added successfully!"
+        });
+      }
 
-      toast({
-        title: "Success",
-        description: "Product added successfully!"
-      });
-
-      setFormData({
-        productName: '',
-        purchasePrice: '',
-        retailPrice: '',
-        stock: ''
-      });
-      setIsDialogOpen(false);
+      handleCloseDialog();
     } catch (error) {
       console.error('Error saving product:', error);
       toast({
         title: "Error",
         description: "Failed to save product",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleDelete = async (productId: string, productName: string) => {
+    try {
+      await deleteProduct(productId);
+      toast({
+        title: "Success",
+        description: `${productName} deleted successfully!`
+      });
+    } catch (error) {
+      console.error('Error deleting product:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete product",
         variant: "destructive"
       });
     }
@@ -90,14 +146,16 @@ const Products = () => {
           <h2 className="text-2xl font-bold text-gray-900">Product Management</h2>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button className="bg-blue-600 hover:bg-blue-700">
+              <Button className="bg-blue-600 hover:bg-blue-700" onClick={() => handleOpenDialog()}>
                 <Plus className="h-4 w-4 mr-2" />
                 Add Product
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-md">
               <DialogHeader>
-                <DialogTitle>Add New Product</DialogTitle>
+                <DialogTitle>
+                  {editingProduct ? 'Edit Product' : 'Add New Product'}
+                </DialogTitle>
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
@@ -137,7 +195,7 @@ const Products = () => {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="stock">Initial Stock</Label>
+                  <Label htmlFor="stock">Stock</Label>
                   <Input
                     id="stock"
                     type="number"
@@ -148,7 +206,7 @@ const Products = () => {
                   />
                 </div>
                 <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700">
-                  Add Product
+                  {editingProduct ? 'Update Product' : 'Add Product'}
                 </Button>
               </form>
             </DialogContent>
@@ -163,9 +221,49 @@ const Products = () => {
             return (
               <Card key={product.id} className="hover:shadow-lg transition-shadow">
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <Package className="h-5 w-5 text-blue-600" />
-                    {product.productName}
+                  <CardTitle className="text-lg flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Package className="h-5 w-5 text-blue-600" />
+                      {product.productName}
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleOpenDialog(product)}
+                        className="h-8 w-8 p-0"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 w-8 p-0 hover:bg-red-50 hover:border-red-200"
+                          >
+                            <Trash2 className="h-4 w-4 text-red-600" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete Product</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Are you sure you want to delete "{product.productName}"? This action cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => handleDelete(product.id, product.productName)}
+                              className="bg-red-600 hover:bg-red-700"
+                            >
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
