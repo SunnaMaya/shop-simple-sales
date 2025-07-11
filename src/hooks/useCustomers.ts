@@ -98,6 +98,20 @@ export const useCustomers = () => {
     ))
   }
 
+  const deleteCustomer = async (id: string) => {
+    if (!user) throw new Error('User must be authenticated')
+
+    const { error } = await supabase
+      .from('customers')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', user.id)
+
+    if (error) throw error
+
+    setCustomers(prev => prev.filter(customer => customer.id !== id))
+  }
+
   const updateCustomerSpending = async (customerId: string, billAmount: number) => {
     if (!user || !customerId) return
 
@@ -151,6 +165,7 @@ export const useCustomers = () => {
     loading,
     addCustomer,
     updateCustomer,
+    deleteCustomer,
     updateCustomerSpending,
     refetch: fetchCustomers
   }

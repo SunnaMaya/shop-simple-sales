@@ -8,6 +8,7 @@ import Layout from '../components/Layout';
 import BillReceipt from '../components/BillReceipt';
 import { Button } from '../components/ui/button';
 import { Label } from '../components/ui/label';
+import { Input } from '../components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Badge } from '../components/ui/badge';
@@ -16,11 +17,12 @@ import { useToast } from '../hooks/use-toast';
 
 const Billing = () => {
   const { products, loading: productsLoading } = useProducts();
-  const { customers, loading: customersLoading, updateCustomerSpending } = useCustomers();
+  const { customers, loading: customersLoading, updateCustomerSpending, updateCustomer } = useCustomers();
   const { addBill } = useBills(updateCustomerSpending);
   const [selectedCustomer, setSelectedCustomer] = useState<string>('');
   const [billItems, setBillItems] = useState<BillItem[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'Credit' | 'Digital'>('Cash');
+  const [paidAmount, setPaidAmount] = useState<number>(0);
   const [isCreatingBill, setIsCreatingBill] = useState(false);
   const [showReceipt, setShowReceipt] = useState(false);
   const [currentBill, setCurrentBill] = useState<Bill | null>(null);
@@ -92,6 +94,11 @@ const Billing = () => {
     return billItems.reduce((total, item) => total + (item.price * item.qty), 0);
   };
 
+  const calculateCredit = () => {
+    const total = calculateTotal();
+    return Math.max(0, total - paidAmount);
+  };
+
   const createBill = async () => {
     if (billItems.length === 0) {
       toast({
@@ -102,9 +109,20 @@ const Billing = () => {
       return;
     }
 
+    const total = calculateTotal();
+    const creditAmount = calculateCredit();
+
+    if (paidAmount < 0) {
+      toast({
+        title: "Error",
+        description: "Paid amount cannot be negative",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setIsCreatingBill(true);
     try {
-      const total = calculateTotal();
       const customer = customers.find(c => c.id === selectedCustomer);
       
       const billData = {
@@ -114,16 +132,24 @@ const Billing = () => {
         items: billItems,
         total,
         paymentMethod,
-        status: 'paid' as const
+        status: creditAmount > 0 ? 'partial' as const : 'paid' as const
       };
 
       console.log('Creating bill with data:', billData);
       const createdBill = await addBill(billData);
       console.log('Bill created successfully:', createdBill);
 
+      // Update customer credit if there's remaining amount
+      if (selectedCustomer && creditAmount > 0) {
+        const currentCredit = customer?.credit || 0;
+        await updateCustomer(selectedCustomer, {
+          credit: currentCredit + creditAmount
+        });
+      }
+
       toast({
         title: "Success",
-        description: "Bill created successfully!"
+        description: `Bill created successfully! ${creditAmount > 0 ? `Credit amount: $${creditAmount.toFixed(2)}` : ''}`
       });
 
       // Show receipt
@@ -134,6 +160,7 @@ const Billing = () => {
       setBillItems([]);
       setSelectedCustomer('');
       setPaymentMethod('Cash');
+      setPaidAmount(0);
     } catch (error) {
       console.error('Error creating bill:', error);
       toast({
@@ -146,6 +173,13 @@ const Billing = () => {
     }
   };
 
+  // Auto-set paid amount to total when no customer is selected or payment method changes
+  useEffect(() => {
+    if (!selectedCustomer || paymentMethod === 'Cash') {
+      setPaidAmount(calculateTotal());
+    }
+  }, [billItems, selectedCustomer, paymentMethod]);
+
   if (productsLoading || customersLoading) {
     return (
       <Layout title="Create Bill">
@@ -156,6 +190,9 @@ const Billing = () => {
       </Layout>
     );
   }
+
+  const total = calculateTotal();
+  const creditAmount = calculateCredit();
 
   return (
     <Layout title="Create Bill">
@@ -216,9 +253,9 @@ const Billing = () => {
                       {customers.map((customer) => (
                         <SelectItem key={customer.id} value={customer.id}>
                           {customer.name} - {customer.phone}
-                          {customer.totalSpent && customer.totalSpent > 0 && (
-                            <span className="text-xs text-gray-500 ml-2">
-                              (Spent: ${customer.totalSpent.toFixed(2)})
+                          {customer.credit > 0 && (
+                            <span className="text-xs text-red-600 ml-2">
+                              (Credit: ${customer.credit.toFixed(2)})
                             </span>
                           )}
                         </SelectItem>
@@ -240,6 +277,19 @@ const Billing = () => {
                     </SelectContent>
                   </Select>
                 </div>
+
+                {selectedCustomer && (
+                  <div>
+                    <Label>Paid Amount</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={paidAmount}
+                      onChange={(e) => setPaidAmount(Number(e.target.value))}
+                      placeholder="Enter amount paid"
+                    />
+                  </div>
+                )}
               </div>
             </CardHeader>
             
@@ -292,11 +342,26 @@ const Billing = () => {
                     ))}
                   </div>
                   
-                  <div className="border-t pt-3">
+                  <div className="border-t pt-3 space-y-2">
                     <div className="flex justify-between items-center text-lg font-bold">
                       <span>Total:</span>
-                      <span className="text-green-600">${calculateTotal().toFixed(2)}</span>
+                      <span className="text-green-600">${total.toFixed(2)}</span>
                     </div>
+                    
+                    {selectedCustomer && (
+                      <>
+                        <div className="flex justify-between items-center text-sm">
+                          <span>Paid:</span>
+                          <span className="text-blue-600">${paidAmount.toFixed(2)}</span>
+                        </div>
+                        {creditAmount > 0 && (
+                          <div className="flex justify-between items-center text-sm">
+                            <span>Credit:</span>
+                            <span className="text-red-600">${creditAmount.toFixed(2)}</span>
+                          </div>
+                        )}
+                      </>
+                    )}
                   </div>
                   
                   <Button 
