@@ -77,9 +77,17 @@ export const useCustomers = () => {
   const updateCustomer = async (id: string, updates: Partial<Omit<Customer, 'id' | 'createdAt'>>) => {
     if (!user) throw new Error('User must be authenticated')
 
+    const dbUpdates: any = {}
+    if ('totalSpent' in updates) dbUpdates.total_spent = updates.totalSpent
+    if ('totalBills' in updates) dbUpdates.total_bills = updates.totalBills
+    if ('name' in updates) dbUpdates.name = updates.name
+    if ('phone' in updates) dbUpdates.phone = updates.phone
+    if ('address' in updates) dbUpdates.address = updates.address
+    if ('credit' in updates) dbUpdates.credit = updates.credit
+
     const { error } = await supabase
       .from('customers')
-      .update(updates)
+      .update(dbUpdates)
       .eq('id', id)
       .eq('user_id', user.id)
 
