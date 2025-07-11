@@ -12,7 +12,7 @@ import { Input } from '../components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Badge } from '../components/ui/badge';
-import { Plus, Minus, ShoppingCart, Trash2, Receipt } from 'lucide-react';
+import { Plus, Minus, ShoppingCart, Trash2, Receipt, Search } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 
 const Billing = () => {
@@ -26,6 +26,7 @@ const Billing = () => {
   const [isCreatingBill, setIsCreatingBill] = useState(false);
   const [showReceipt, setShowReceipt] = useState(false);
   const [currentBill, setCurrentBill] = useState<Bill | null>(null);
+  const [productSearchTerm, setProductSearchTerm] = useState('');
   const { toast } = useToast();
 
   const addProductToBill = (product: any) => {
@@ -161,11 +162,12 @@ const Billing = () => {
       setSelectedCustomer('');
       setPaymentMethod('Cash');
       setPaidAmount(0);
+      setProductSearchTerm('');
     } catch (error) {
       console.error('Error creating bill:', error);
       toast({
         title: "Error",
-        description: "Failed to create bill",
+        description: error instanceof Error ? error.message : "Failed to create bill",
         variant: "destructive"
       });
     } finally {
@@ -194,21 +196,44 @@ const Billing = () => {
   const total = calculateTotal();
   const creditAmount = calculateCredit();
 
+  const filteredProducts = products.filter(p => 
+    p.stock > 0 && p.productName.toLowerCase().includes(productSearchTerm.toLowerCase())
+  );
+
   return (
     <Layout title="Create Bill">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Products Section */}
         <div className="space-y-4">
           <h3 className="text-lg font-semibold">Available Products</h3>
+          
+          {/* Product Search */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+            <Input
+              placeholder="Search products..."
+              value={productSearchTerm}
+              onChange={(e) => setProductSearchTerm(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+
           {products.length === 0 ? (
             <Card className="text-center py-8">
               <CardContent>
                 <p className="text-gray-500">No products available. Add some products first.</p>
               </CardContent>
             </Card>
+          ) : filteredProducts.length === 0 ? (
+            <Card className="text-center py-8">
+              <CardContent>
+                <Search className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                <p className="text-gray-500">No products found matching your search.</p>
+              </CardContent>
+            </Card>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-96 overflow-y-auto">
-              {products.filter(p => p.stock > 0).map((product) => (
+              {filteredProducts.map((product) => (
                 <Card key={product.id} className="cursor-pointer hover:shadow-md transition-shadow"
                       onClick={() => addProductToBill(product)}>
                   <CardContent className="p-3">

@@ -1,14 +1,20 @@
 
+import { useState } from 'react';
 import { useBills } from '../hooks/useBills';
 import Layout from '../components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
-import { FileText, Calendar, User, Plus } from 'lucide-react';
-import { Link } from 'react-router-dom';
 import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '../components/ui/alert-dialog';
+import { FileText, Calendar, User, Plus, Search, Edit, Trash2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { useToast } from '../hooks/use-toast';
 
 const Bills = () => {
-  const { bills, loading } = useBills();
+  const { bills, loading, deleteBill } = useBills();
+  const [searchTerm, setSearchTerm] = useState('');
+  const { toast } = useToast();
 
   const getPaymentMethodColor = (method: string) => {
     switch (method) {
@@ -35,6 +41,29 @@ const Bills = () => {
         return 'bg-gray-100 text-gray-800';
     }
   };
+
+  const handleDeleteBill = async (billId: string, billNumber: string) => {
+    try {
+      await deleteBill(billId);
+      toast({
+        title: "Success",
+        description: `Bill #${billNumber} deleted successfully!`
+      });
+    } catch (error) {
+      console.error('Error deleting bill:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete bill",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const filteredBills = bills.filter(bill => 
+    bill.customerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    bill.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    bill.items.some(item => item.productName.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
 
   if (loading) {
     return (
@@ -69,8 +98,19 @@ const Bills = () => {
           </div>
         </div>
 
+        {/* Search Bar */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+          <Input
+            placeholder="Search bills by customer, bill ID, or product..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+
         <div className="space-y-4">
-          {bills.map((bill) => (
+          {filteredBills.map((bill) => (
             <Card key={bill.id} className="hover:shadow-lg transition-shadow">
               <CardHeader className="pb-3">
                 <div className="flex flex-col sm:flex-row justify-between gap-4">
@@ -89,6 +129,44 @@ const Bills = () => {
                           {bill.status}
                         </Badge>
                       )}
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 w-8 p-0"
+                        onClick={() => {/* TODO: Implement edit functionality */}}
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 w-8 p-0 hover:bg-red-50 hover:border-red-200"
+                          >
+                            <Trash2 className="h-4 w-4 text-red-600" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete Bill</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Are you sure you want to delete Bill #{bill.id.slice(-8)}? This action cannot be undone and will restore the stock quantities.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => handleDeleteBill(bill.id, bill.id.slice(-8))}
+                              className="bg-red-600 hover:bg-red-700"
+                            >
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     </div>
                   </div>
                 </div>
@@ -120,6 +198,16 @@ const Bills = () => {
             </Card>
           ))}
         </div>
+
+        {filteredBills.length === 0 && bills.length > 0 && (
+          <Card className="text-center py-12">
+            <CardContent>
+              <Search className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No bills found</h3>
+              <p className="text-gray-600">Try adjusting your search criteria</p>
+            </CardContent>
+          </Card>
+        )}
 
         {bills.length === 0 && (
           <Card className="text-center py-12">

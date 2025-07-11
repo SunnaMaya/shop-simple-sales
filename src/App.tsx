@@ -1,63 +1,57 @@
 
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { SupabaseAuthProvider, useSupabaseAuth } from "./hooks/useSupabaseAuth";
-import LoginForm from "./components/LoginForm";
-import Dashboard from "./components/Dashboard";
-import Products from "./pages/Products";
-import Customers from "./pages/Customers";
-import Billing from "./pages/Billing";
-import Bills from "./pages/Bills";
-import Expenses from "./pages/Expenses";
-import Reports from "./pages/Reports";
-import NotFound from "./pages/NotFound";
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { useSupabaseAuth } from './hooks/useSupabaseAuth';
+import { Toaster } from './components/ui/toaster';
+import LoginForm from './components/LoginForm';
+import Index from './pages/Index';
+import Products from './pages/Products';
+import Customers from './pages/Customers';
+import Billing from './pages/Billing';
+import Bills from './pages/Bills';
+import Expenses from './pages/Expenses';
+import Reports from './pages/Reports';
+import NotFound from './pages/NotFound';
+import PWAInstallPrompt from './components/PWAInstallPrompt';
 
-const queryClient = new QueryClient();
-
-const AppContent = () => {
+function App() {
   const { user, loading } = useSupabaseAuth();
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-lg">Loading...</div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
       </div>
     );
   }
 
   if (!user) {
-    return <LoginForm />;
+    return (
+      <>
+        <LoginForm />
+        <Toaster />
+      </>
+    );
   }
 
   return (
-    <Routes>
-      <Route path="/" element={<Dashboard />} />
-      <Route path="/products" element={<Products />} />
-      <Route path="/customers" element={<Customers />} />
-      <Route path="/billing" element={<Billing />} />
-      <Route path="/bills" element={<Bills />} />
-      <Route path="/expenses" element={<Expenses />} />
-      <Route path="/reports" element={<Reports />} />
-      <Route path="*" element={<NotFound />} />
-    </Routes>
+    <Router>
+      <div className="min-h-screen bg-gray-50">
+        <Routes>
+          <Route path="/" element={<Index />} />
+          <Route path="/products" element={<Products />} />
+          <Route path="/customers" element={<Customers />} />
+          <Route path="/billing" element={<Billing />} />
+          <Route path="/bills" element={<Bills />} />
+          <Route path="/expenses" element={<Expenses />} />
+          <Route path="/reports" element={<Reports />} />
+          <Route path="/404" element={<NotFound />} />
+          <Route path="*" element={<Navigate to="/404" replace />} />
+        </Routes>
+        <PWAInstallPrompt />
+        <Toaster />
+      </div>
+    </Router>
   );
-};
-
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <SupabaseAuthProvider>
-        <BrowserRouter>
-          <AppContent />
-        </BrowserRouter>
-      </SupabaseAuthProvider>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
+}
 
 export default App;

@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '../components/ui/alert-dialog';
 import { Badge } from '../components/ui/badge';
-import { Plus, Package, DollarSign, TrendingUp, AlertTriangle, Edit, Trash2 } from 'lucide-react';
+import { Plus, Package, TrendingUp, AlertTriangle, Edit, Trash2, Search } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 import { Product } from '../types';
 
@@ -17,6 +17,7 @@ const Products = () => {
   const { products, loading, addProduct, updateProduct, deleteProduct } = useProducts();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
   const [formData, setFormData] = useState({
     productName: '',
     purchasePrice: '',
@@ -129,6 +130,10 @@ const Products = () => {
     return ((retail - purchase) / purchase * 100).toFixed(1);
   };
 
+  const filteredProducts = products.filter(product =>
+    product.productName.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   if (loading) {
     return (
       <Layout title="Products">
@@ -213,8 +218,19 @@ const Products = () => {
           </Dialog>
         </div>
 
+        {/* Search Bar */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+          <Input
+            placeholder="Search products by name..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {products.map((product) => {
+          {filteredProducts.map((product) => {
             const stockStatus = getStockStatus(product.stock);
             const profitMargin = getProfitMargin(product.purchasePrice, product.retailPrice);
             
@@ -302,6 +318,16 @@ const Products = () => {
             );
           })}
         </div>
+
+        {filteredProducts.length === 0 && products.length > 0 && (
+          <Card className="text-center py-12">
+            <CardContent>
+              <Search className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No products found</h3>
+              <p className="text-gray-600">Try adjusting your search criteria</p>
+            </CardContent>
+          </Card>
+        )}
 
         {products.length === 0 && (
           <Card className="text-center py-12">

@@ -59,6 +59,22 @@ export const useBills = (updateCustomerSpending?: (customerId: string, amount: n
     if (!user) throw new Error('User must be authenticated')
 
     try {
+      // Check stock availability before creating bill
+      for (const item of billData.items) {
+        const { data: product, error: productError } = await supabase
+          .from('products')
+          .select('stock')
+          .eq('id', item.productId)
+          .eq('user_id', user.id)
+          .single()
+
+        if (productError) throw productError
+        
+        if (product.stock < item.qty) {
+          throw new Error(`Not enough stock for ${item.productName}. Available: ${product.stock}, Required: ${item.qty}`)
+        }
+      }
+
       // Insert bill
       const { data: billResult, error: billError } = await supabase
         .from('bills')
@@ -125,6 +141,56 @@ export const useBills = (updateCustomerSpending?: (customerId: string, amount: n
     }
   }
 
+  const deleteBill = async (billId: string) => {
+    if (!user) throw new Error('User must be authenticated')
+
+    try {
+      // Get bill items to restore stock
+      const { data: billItems, error: itemsError } = await supabase
+        .from('bill_items')
+        .select('product_id, qty')
+        .eq('bill_id', billId)
+
+      if (itemsError) throw itemsError
+
+      // Restore stock for each item
+      for (const item of billItems) {
+        const { error: stockError } = await supabase
+          .from('products')
+          .update({ 
+            stock: supabase.raw('stock + ?', [item.qty]),
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', item.product_id)
+          .eq('user_id', user.id)
+
+        if (stockError) console.error('Error restoring stock:', stockError)
+      }
+
+      // Delete bill items first
+      const { error: deleteItemsError } = await supabase
+        .from('bill_items')
+        .delete()
+        .eq('bill_id', billId)
+
+      if (deleteItemsError) throw deleteItemsError
+
+      // Delete bill
+      const { error: deleteBillError } = await supabase
+        .from('bills')
+        .delete()
+        .eq('id', billId)
+        .eq('user_id', user.id)
+
+      if (deleteBillError) throw deleteBillError
+
+      setBills(prev => prev.filter(bill => bill.id !== billId))
+    } catch (error) {
+      console.error('Error deleting bill:', error)
+      throw error
+    }
+  }
+
   useEffect(() => {
     fetchBills()
   }, [user])
@@ -133,6 +199,7 @@ export const useBills = (updateCustomerSpending?: (customerId: string, amount: n
     bills,
     loading,
     addBill,
+    deleteBill,
     refetch: fetchBills
   }
 }
