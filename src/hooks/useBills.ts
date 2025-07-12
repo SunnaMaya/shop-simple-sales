@@ -141,6 +141,35 @@ export const useBills = (updateCustomerSpending?: (customerId: string, amount: n
     }
   }
 
+  const updateBill = async (billId: string, updates: Partial<Omit<Bill, 'id' | 'createdAt'>>) => {
+    if (!user) throw new Error('User must be authenticated')
+
+    try {
+      const updateData: any = {}
+      if (updates.customerId !== undefined) updateData.customer_id = updates.customerId
+      if (updates.customerName !== undefined) updateData.customer_name = updates.customerName
+      if (updates.date !== undefined) updateData.date = updates.date.toISOString()
+      if (updates.total !== undefined) updateData.total = updates.total
+      if (updates.paymentMethod !== undefined) updateData.payment_method = updates.paymentMethod
+      if (updates.status !== undefined) updateData.status = updates.status
+
+      const { error } = await supabase
+        .from('bills')
+        .update(updateData)
+        .eq('id', billId)
+        .eq('user_id', user.id)
+
+      if (error) throw error
+
+      setBills(prev => prev.map(bill => 
+        bill.id === billId ? { ...bill, ...updates } : bill
+      ))
+    } catch (error) {
+      console.error('Error updating bill:', error)
+      throw error
+    }
+  }
+
   const deleteBill = async (billId: string) => {
     if (!user) throw new Error('User must be authenticated')
 
@@ -155,10 +184,24 @@ export const useBills = (updateCustomerSpending?: (customerId: string, amount: n
 
       // Restore stock for each item
       for (const item of billItems) {
+        // Get current stock
+        const { data: product, error: getError } = await supabase
+          .from('products')
+          .select('stock')
+          .eq('id', item.product_id)
+          .eq('user_id', user.id)
+          .single()
+
+        if (getError) {
+          console.error('Error getting current stock:', getError)
+          continue
+        }
+
+        // Update stock by adding back the quantity
         const { error: stockError } = await supabase
           .from('products')
           .update({ 
-            stock: supabase.raw('stock + ?', [item.qty]),
+            stock: product.stock + item.qty,
             updated_at: new Date().toISOString()
           })
           .eq('id', item.product_id)
@@ -199,6 +242,7 @@ export const useBills = (updateCustomerSpending?: (customerId: string, amount: n
     bills,
     loading,
     addBill,
+    updateBill,
     deleteBill,
     refetch: fetchBills
   }
