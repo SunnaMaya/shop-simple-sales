@@ -36,7 +36,12 @@ export const useProfile = () => {
           await createProfile();
         }
       } else {
-        setProfile(data);
+        // Type cast the preferred_language to ensure it matches our interface
+        const profileData: UserProfile = {
+          ...data,
+          preferred_language: (data.preferred_language as 'en' | 'ne') || 'en'
+        };
+        setProfile(profileData);
       }
     } catch (error) {
       console.error('Error in fetchProfile:', error);
@@ -62,7 +67,12 @@ export const useProfile = () => {
       if (error) {
         console.error('Error creating profile:', error);
       } else {
-        setProfile(data);
+        // Type cast the preferred_language to ensure it matches our interface
+        const profileData: UserProfile = {
+          ...data,
+          preferred_language: (data.preferred_language as 'en' | 'ne') || 'en'
+        };
+        setProfile(profileData);
       }
     } catch (error) {
       console.error('Error in createProfile:', error);
@@ -84,7 +94,12 @@ export const useProfile = () => {
         console.error('Error updating profile:', error);
         throw error;
       } else {
-        setProfile(data);
+        // Type cast the preferred_language to ensure it matches our interface
+        const profileData: UserProfile = {
+          ...data,
+          preferred_language: (data.preferred_language as 'en' | 'ne') || 'en'
+        };
+        setProfile(profileData);
       }
     } catch (error) {
       console.error('Error in updateProfile:', error);
