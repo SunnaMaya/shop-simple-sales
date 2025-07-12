@@ -12,7 +12,7 @@ import { Input } from '../components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Badge } from '../components/ui/badge';
-import { Plus, Minus, ShoppingCart, Trash2, Receipt, Search } from 'lucide-react';
+import { Plus, Minus, ShoppingCart, Trash2, Receipt, Search, CreditCard } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 
 const Billing = () => {
@@ -100,18 +100,21 @@ const Billing = () => {
     return Math.max(0, total - paidAmount);
   };
 
+  const calculateCreditReduction = () => {
+    const total = calculateTotal();
+    return Math.max(0, paidAmount - total);
+  };
+
   const createBill = async () => {
-    if (billItems.length === 0) {
+    // Allow bill creation even without items if customer is selected and making a payment
+    if (billItems.length === 0 && !selectedCustomer) {
       toast({
         title: "Error",
-        description: "Please add items to the bill",
+        description: "Please add items to the bill or select a customer to make a credit payment",
         variant: "destructive"
       });
       return;
     }
-
-    const total = calculateTotal();
-    const creditAmount = calculateCredit();
 
     if (paidAmount < 0) {
       toast({
@@ -122,10 +125,38 @@ const Billing = () => {
       return;
     }
 
+    const total = calculateTotal();
+    const creditAmount = calculateCredit();
+    const creditReduction = calculateCreditReduction();
+
     setIsCreatingBill(true);
     try {
       const customer = customers.find(c => c.id === selectedCustomer);
       
+      // Handle credit-only payment (no items)
+      if (billItems.length === 0 && selectedCustomer && paidAmount > 0) {
+        // This is a credit payment only
+        const currentCredit = customer?.credit || 0;
+        const newCredit = Math.max(0, currentCredit - paidAmount);
+        
+        await updateCustomer(selectedCustomer, {
+          credit: newCredit
+        });
+
+        toast({
+          title: "Success",
+          description: `Credit payment successful! Credit reduced by $${paidAmount.toFixed(2)}`
+        });
+
+        // Reset form
+        setSelectedCustomer('');
+        setPaymentMethod('Cash');
+        setPaidAmount(0);
+        setIsCreatingBill(false);
+        return;
+      }
+
+      // Regular bill creation with items
       const billData = {
         customerId: selectedCustomer || undefined,
         customerName: customer?.name || 'Walk-in Customer',
@@ -140,17 +171,36 @@ const Billing = () => {
       const createdBill = await addBill(billData);
       console.log('Bill created successfully:', createdBill);
 
-      // Update customer credit if there's remaining amount
-      if (selectedCustomer && creditAmount > 0) {
-        const currentCredit = customer?.credit || 0;
-        await updateCustomer(selectedCustomer, {
-          credit: currentCredit + creditAmount
-        });
+      // Handle customer credit adjustments
+      if (selectedCustomer && customer) {
+        const currentCredit = customer.credit || 0;
+        let newCredit = currentCredit;
+
+        if (creditAmount > 0) {
+          // Customer owes money, add to credit
+          newCredit = currentCredit + creditAmount;
+        } else if (creditReduction > 0) {
+          // Customer paid more than bill, reduce credit
+          newCredit = Math.max(0, currentCredit - creditReduction);
+        }
+
+        if (newCredit !== currentCredit) {
+          await updateCustomer(selectedCustomer, {
+            credit: newCredit
+          });
+        }
+      }
+
+      let successMessage = 'Bill created successfully!';
+      if (creditAmount > 0) {
+        successMessage += ` Credit amount: $${creditAmount.toFixed(2)}`;
+      } else if (creditReduction > 0) {
+        successMessage += ` Credit reduced by: $${creditReduction.toFixed(2)}`;
       }
 
       toast({
         title: "Success",
-        description: `Bill created successfully! ${creditAmount > 0 ? `Credit amount: $${creditAmount.toFixed(2)}` : ''}`
+        description: successMessage
       });
 
       // Show receipt
@@ -195,6 +245,8 @@ const Billing = () => {
 
   const total = calculateTotal();
   const creditAmount = calculateCredit();
+  const creditReduction = calculateCreditReduction();
+  const selectedCustomerData = customers.find(c => c.id === selectedCustomer);
 
   const filteredProducts = products.filter(p => 
     p.stock > 0 && p.productName.toLowerCase().includes(productSearchTerm.toLowerCase())
@@ -319,10 +371,28 @@ const Billing = () => {
             </CardHeader>
             
             <CardContent className="space-y-3">
+              {/* Customer Credit Info */}
+              {selectedCustomerData && selectedCustomerData.credit > 0 && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                  <div className="flex items-center gap-2">
+                    <CreditCard className="h-4 w-4 text-red-600" />
+                    <span className="font-medium text-red-800">Outstanding Credit</span>
+                  </div>
+                  <p className="text-red-600 text-sm mt-1">
+                    Current credit balance: ${selectedCustomerData.credit.toFixed(2)}
+                  </p>
+                </div>
+              )}
+
               {billItems.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
                   <ShoppingCart className="h-8 w-8 mx-auto mb-2 opacity-50" />
                   <p>No items added yet</p>
+                  {selectedCustomer && (
+                    <p className="text-sm mt-2 text-blue-600">
+                      You can still make a credit payment without items
+                    </p>
+                  )}
                 </div>
               ) : (
                 <>
@@ -385,19 +455,26 @@ const Billing = () => {
                             <span className="text-red-600">${creditAmount.toFixed(2)}</span>
                           </div>
                         )}
+                        {creditReduction > 0 && (
+                          <div className="flex justify-between items-center text-sm">
+                            <span>Credit Reduction:</span>
+                            <span className="text-green-600">-${creditReduction.toFixed(2)}</span>
+                          </div>
+                        )}
                       </>
                     )}
                   </div>
-                  
-                  <Button 
-                    onClick={createBill} 
-                    className="w-full bg-purple-600 hover:bg-purple-700"
-                    disabled={isCreatingBill}
-                  >
-                    {isCreatingBill ? 'Creating...' : 'Create Bill'}
-                  </Button>
                 </>
               )}
+              
+              <Button 
+                onClick={createBill} 
+                className="w-full bg-purple-600 hover:bg-purple-700"
+                disabled={isCreatingBill}
+              >
+                {isCreatingBill ? 'Processing...' : 
+                 billItems.length === 0 && selectedCustomer ? 'Make Credit Payment' : 'Create Bill'}
+              </Button>
             </CardContent>
           </Card>
         </div>
