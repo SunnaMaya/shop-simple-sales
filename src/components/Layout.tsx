@@ -1,10 +1,13 @@
 
 import { ReactNode } from 'react';
 import { useSupabaseAuth } from '../hooks/useSupabaseAuth';
+import { useProfile } from '../hooks/useProfile';
 import { Button } from './ui/button';
 import { LogOut, Store, Menu, X } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { useState } from 'react';
+import ShopSettings from './ShopSettings';
+import { translations } from '../lib/translations';
 
 interface LayoutProps {
   children: ReactNode;
@@ -13,8 +16,12 @@ interface LayoutProps {
 
 const Layout = ({ children, title }: LayoutProps) => {
   const { logout, user } = useSupabaseAuth();
+  const { profile } = useProfile();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  const currentLanguage = profile?.preferred_language || 'en';
+  const t = (key: keyof typeof translations.en) => translations[currentLanguage][key];
 
   const handleLogout = async () => {
     try {
@@ -25,13 +32,13 @@ const Layout = ({ children, title }: LayoutProps) => {
   };
 
   const navigationItems = [
-    { name: 'Dashboard', path: '/' },
-    { name: 'Products', path: '/products' },
-    { name: 'Customers', path: '/customers' },
-    { name: 'New Bill', path: '/billing' },
-    { name: 'Bills', path: '/bills' },
-    { name: 'Expenses', path: '/expenses' },
-    { name: 'Reports', path: '/reports' },
+    { name: t('nav.dashboard'), path: '/' },
+    { name: t('nav.products'), path: '/products' },
+    { name: t('nav.customers'), path: '/customers' },
+    { name: t('nav.newBill'), path: '/billing' },
+    { name: t('nav.bills'), path: '/bills' },
+    { name: t('nav.expenses'), path: '/expenses' },
+    { name: t('nav.reports'), path: '/reports' },
   ];
 
   const isActivePath = (path: string) => {
@@ -52,7 +59,9 @@ const Layout = ({ children, title }: LayoutProps) => {
               <Link to="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
                 <Store className="h-8 w-8 text-blue-600" />
                 <div className="hidden sm:block">
-                  <h1 className="text-xl font-bold text-gray-900">Retail Manager</h1>
+                  <h1 className="text-xl font-bold text-gray-900">
+                    {profile?.shop_name || t('header.title')}
+                  </h1>
                   <p className="text-xs text-gray-500">{title}</p>
                 </div>
               </Link>
@@ -78,13 +87,14 @@ const Layout = ({ children, title }: LayoutProps) => {
             {/* User Menu and Mobile Menu Button */}
             <div className="flex items-center gap-2">
               <div className="hidden sm:flex items-center gap-2">
+                <ShopSettings currentLanguage={currentLanguage} />
                 <span className="text-sm text-gray-600 truncate max-w-32">{user?.email}</span>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={handleLogout}
                   className="text-gray-600 hover:text-gray-900"
-                  title="Logout"
+                  title={t('header.logout')}
                 >
                   <LogOut className="h-4 w-4" />
                 </Button>
@@ -123,7 +133,8 @@ const Layout = ({ children, title }: LayoutProps) => {
                 
                 {/* Mobile user menu */}
                 <div className="border-t pt-3 mt-3">
-                  <div className="px-3 py-2">
+                  <div className="px-3 py-2 flex items-center gap-2">
+                    <ShopSettings currentLanguage={currentLanguage} />
                     <p className="text-sm text-gray-600 truncate">{user?.email}</p>
                   </div>
                   <Button
@@ -136,7 +147,7 @@ const Layout = ({ children, title }: LayoutProps) => {
                     className="w-full justify-start text-gray-600 hover:text-gray-900"
                   >
                     <LogOut className="h-4 w-4 mr-2" />
-                    Logout
+                    {t('header.logout')}
                   </Button>
                 </div>
               </div>
