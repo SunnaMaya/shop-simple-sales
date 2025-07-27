@@ -1,5 +1,5 @@
 
-import { ReactNode } from 'react';
+import React, { ReactNode } from 'react';
 import { useSupabaseAuth } from '../hooks/useSupabaseAuth';
 import { Button } from './ui/button';
 import { LogOut, Store, Menu, X } from 'lucide-react';
@@ -156,4 +156,4 @@ const Layout = ({ children, title }: LayoutProps) => {
   );
 };
 
-export default Layout;
+export default React.memo(Layout);

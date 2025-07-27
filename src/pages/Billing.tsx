@@ -1,19 +1,24 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useProducts } from '../hooks/useProducts';
 import { useCustomers } from '../hooks/useCustomers';
 import { useBills } from '../hooks/useBills';
-import { BillItem, Bill } from '../types';
+import { useBillingLogic } from '../hooks/useBillingLogic';
+import { useDebounce } from '../hooks/useDebounce';
+import { Bill } from '../types';
 import Layout from '../components/Layout';
 import BillReceipt from '../components/BillReceipt';
 import CreditPaymentReceipt from '../components/CreditPaymentReceipt';
+import ProductSearch from '../components/billing/ProductSearch';
+import ProductGrid from '../components/billing/ProductGrid';
+import BillItemsList from '../components/billing/BillItemsList';
+import CustomerCreditInfo from '../components/billing/CustomerCreditInfo';
 import { Button } from '../components/ui/button';
 import { Label } from '../components/ui/label';
 import { Input } from '../components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Card, CardContent, CardHeader } from '../components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { Badge } from '../components/ui/badge';
-import { Plus, Minus, ShoppingCart, Trash2, Receipt, Search, CreditCard } from 'lucide-react';
+import { Receipt } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 import { useLanguage } from '../contexts/LanguageContext';
 
@@ -21,11 +26,7 @@ const Billing = () => {
   const { products, loading: productsLoading } = useProducts();
   const { customers, loading: customersLoading, updateCustomerSpending, updateCustomer } = useCustomers();
   const { addBill } = useBills(updateCustomerSpending);
-  const [selectedCustomer, setSelectedCustomer] = useState<string>('');
-  const [billItems, setBillItems] = useState<BillItem[]>([]);
-  const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'Credit' | 'Digital'>('Cash');
-  const [paidAmount, setPaidAmount] = useState<number>(0);
-  const [isCreatingBill, setIsCreatingBill] = useState(false);
+  
   const [showReceipt, setShowReceipt] = useState(false);
   const [showCreditReceipt, setShowCreditReceipt] = useState(false);
   const [currentBill, setCurrentBill] = useState<Bill | null>(null);
@@ -36,84 +37,42 @@ const Billing = () => {
     remainingCredit: number;
   } | null>(null);
   const [productSearchTerm, setProductSearchTerm] = useState('');
+  
   const { toast } = useToast();
   const { t } = useLanguage();
 
-  const addProductToBill = (product: any) => {
-    const existingItem = billItems.find(item => item.productId === product.id);
-    if (existingItem) {
-      if (existingItem.qty < product.stock) {
-        setBillItems(billItems.map(item =>
-          item.productId === product.id
-            ? { ...item, qty: item.qty + 1 }
-            : item
-        ));
-      } else {
-        toast({
-          title: "Error",
-          description: "Not enough stock available",
-          variant: "destructive"
-        });
-      }
-    } else {
-      if (product.stock > 0) {
-        setBillItems([...billItems, {
-          productId: product.id,
-          productName: product.productName,
-          qty: 1,
-          price: product.retailPrice
-        }]);
-      } else {
-        toast({
-          title: "Error",
-          description: "Product out of stock",
-          variant: "destructive"
-        });
-      }
-    }
-  };
+  // Use custom hook for billing logic
+  const {
+    billItems,
+    selectedCustomer,
+    paymentMethod,
+    paidAmount,
+    isCreatingBill,
+    setSelectedCustomer,
+    setPaymentMethod,
+    setPaidAmount,
+    setIsCreatingBill,
+    addProductToBill,
+    updateQuantity,
+    removeItem,
+    resetForm,
+    total,
+    creditAmount,
+    creditReduction,
+    selectedCustomerData,
+  } = useBillingLogic({ products, customers, updateCustomer, addBill });
 
-  const updateQuantity = (productId: string, change: number) => {
-    const product = products.find(p => p.id === productId);
-    if (!product) return;
+  // Debounced search for better performance
+  const debouncedSearchTerm = useDebounce(productSearchTerm, 300);
 
-    setBillItems(billItems.map(item => {
-      if (item.productId === productId) {
-        const newQty = item.qty + change;
-        if (newQty <= 0) {
-          return null;
-        }
-        if (newQty > product.stock) {
-          toast({
-            title: "Error",
-            description: "Not enough stock available",
-            variant: "destructive"
-          });
-          return item;
-        }
-        return { ...item, qty: newQty };
-      }
-      return item;
-    }).filter(Boolean) as BillItem[]);
-  };
-
-  const removeItem = (productId: string) => {
-    setBillItems(billItems.filter(item => item.productId !== productId));
-  };
-
-  const calculateTotal = () => {
-    return billItems.reduce((total, item) => total + (item.price * item.qty), 0);
-  };
-
-  const calculateCredit = () => {
-    const total = calculateTotal();
-    return Math.max(0, total - paidAmount);
-  };
-
-  const calculateCreditReduction = () => {
-    const total = calculateTotal();
-    return Math.max(0, paidAmount - total);
-  };
+  // Memoized filtered products for better performance
+  const filteredProducts = useMemo(() => 
+    products.filter(p => 
+      p.stock > 0 && 
+      p.productName.toLowerCase().includes(debouncedSearchTerm.toLowerCase())
+    ),
+    [products, debouncedSearchTerm]
+  );
 
   const createBill = async () => {
     // Allow bill creation even without items if customer is selected and making a payment
@@ -134,10 +93,6 @@ const Billing = () => {
       });
       return;
     }
-
-    const total = calculateTotal();
-    const creditAmount = calculateCredit();
-    const creditReduction = calculateCreditReduction();
 
     setIsCreatingBill(true);
     try {
@@ -169,9 +124,8 @@ const Billing = () => {
         });
 
         // Reset form
-        setSelectedCustomer('');
-        setPaymentMethod('Cash');
-        setPaidAmount(0);
+        resetForm();
+        setProductSearchTerm('');
         setIsCreatingBill(false);
         return;
       }
@@ -228,10 +182,7 @@ const Billing = () => {
       setShowReceipt(true);
 
       // Reset form
-      setBillItems([]);
-      setSelectedCustomer('');
-      setPaymentMethod('Cash');
-      setPaidAmount(0);
+      resetForm();
       setProductSearchTerm('');
     } catch (error) {
       console.error('Error creating bill:', error);
@@ -248,9 +199,9 @@ const Billing = () => {
   // Auto-set paid amount to total when no customer is selected or payment method changes
   useEffect(() => {
     if (!selectedCustomer || paymentMethod === 'Cash') {
-      setPaidAmount(calculateTotal());
+      setPaidAmount(total);
     }
-  }, [billItems, selectedCustomer, paymentMethod]);
+  }, [total, selectedCustomer, paymentMethod, setPaidAmount]);
 
   if (productsLoading || customersLoading) {
     return (
@@ -263,14 +214,6 @@ const Billing = () => {
     );
   }
 
-  const total = calculateTotal();
-  const creditAmount = calculateCredit();
-  const creditReduction = calculateCreditReduction();
-  const selectedCustomerData = customers.find(c => c.id === selectedCustomer);
-
-  const filteredProducts = products.filter(p => 
-    p.stock > 0 && p.productName.toLowerCase().includes(productSearchTerm.toLowerCase())
-  );
 
   return (
     <Layout title={t('createBill')}>
@@ -279,16 +222,10 @@ const Billing = () => {
         <div className="space-y-4">
           <h3 className="text-lg font-semibold">{t('availableProducts')}</h3>
           
-          {/* Product Search */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-            <Input
-              placeholder={t('search') + ' products...'}
-              value={productSearchTerm}
-              onChange={(e) => setProductSearchTerm(e.target.value)}
-              className="pl-10"
-            />
-          </div>
+          <ProductSearch 
+            searchTerm={productSearchTerm}
+            onSearchChange={setProductSearchTerm}
+          />
 
           {products.length === 0 ? (
             <Card className="text-center py-8">
@@ -296,37 +233,11 @@ const Billing = () => {
                 <p className="text-gray-500">No products available. Add some products first.</p>
               </CardContent>
             </Card>
-          ) : filteredProducts.length === 0 ? (
-            <Card className="text-center py-8">
-              <CardContent>
-                <Search className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                <p className="text-gray-500">No products found matching your search.</p>
-              </CardContent>
-            </Card>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-96 overflow-y-auto">
-              {filteredProducts.map((product) => (
-                <Card key={product.id} className="cursor-pointer hover:shadow-md transition-shadow"
-                      onClick={() => addProductToBill(product)}>
-                  <CardContent className="p-3">
-                    <div className="flex justify-between items-start mb-2">
-                      <h4 className="font-medium text-sm">{product.productName}</h4>
-                      <Badge variant="secondary" className="text-xs">
-                        Stock: {product.stock}
-                      </Badge>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-lg font-bold text-green-600">
-                        ${product.retailPrice.toFixed(2)}
-                      </span>
-                      <Button size="sm" className="h-6 w-6 p-0">
-                        <Plus className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+            <ProductGrid 
+              products={filteredProducts}
+              onAddProduct={addProductToBill}
+            />
           )}
         </div>
 
@@ -391,100 +302,43 @@ const Billing = () => {
             </CardHeader>
             
             <CardContent className="space-y-3">
-              {/* Customer Credit Info */}
-              {selectedCustomerData && selectedCustomerData.credit > 0 && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                  <div className="flex items-center gap-2">
-                    <CreditCard className="h-4 w-4 text-red-600" />
-                    <span className="font-medium text-red-800">Outstanding Credit</span>
-                  </div>
-                  <p className="text-red-600 text-sm mt-1">
-                    Current credit balance: ${selectedCustomerData.credit.toFixed(2)}
-                  </p>
-                </div>
-              )}
+              <CustomerCreditInfo customer={selectedCustomerData} />
 
-              {billItems.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <ShoppingCart className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                  <p>No items added yet</p>
-                  {selectedCustomer && (
-                    <p className="text-sm mt-2 text-blue-600">
-                      You can still make a credit payment without items
-                    </p>
-                  )}
-                </div>
-              ) : (
-                <>
-                  <div className="space-y-2 max-h-64 overflow-y-auto">
-                    {billItems.map((item) => (
-                      <div key={item.productId} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                        <div className="flex-1">
-                          <p className="font-medium text-sm">{item.productName}</p>
-                          <p className="text-xs text-gray-600">${item.price.toFixed(2)} each</p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-6 w-6 p-0"
-                            onClick={() => updateQuantity(item.productId, -1)}
-                          >
-                            <Minus className="h-3 w-3" />
-                          </Button>
-                          <span className="text-sm font-medium w-8 text-center">{item.qty}</span>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-6 w-6 p-0"
-                            onClick={() => updateQuantity(item.productId, 1)}
-                          >
-                            <Plus className="h-3 w-3" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-6 w-6 p-0 text-red-600 hover:text-red-700"
-                            onClick={() => removeItem(item.productId)}
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </div>
-                        <div className="text-sm font-medium ml-2 w-16 text-right">
-                          ${(item.price * item.qty).toFixed(2)}
-                        </div>
-                      </div>
-                    ))}
+              <BillItemsList 
+                items={billItems}
+                onUpdateQuantity={updateQuantity}
+                onRemoveItem={removeItem}
+                selectedCustomer={selectedCustomer}
+              />
+                  
+              {billItems.length > 0 && (
+                <div className="border-t pt-3 space-y-2">
+                  <div className="flex justify-between items-center text-lg font-bold">
+                    <span>Total:</span>
+                    <span className="text-green-600">${total.toFixed(2)}</span>
                   </div>
                   
-                  <div className="border-t pt-3 space-y-2">
-                    <div className="flex justify-between items-center text-lg font-bold">
-                      <span>Total:</span>
-                      <span className="text-green-600">${total.toFixed(2)}</span>
-                    </div>
-                    
-                    {selectedCustomer && (
-                      <>
+                  {selectedCustomer && (
+                    <>
+                      <div className="flex justify-between items-center text-sm">
+                        <span>Paid:</span>
+                        <span className="text-blue-600">${paidAmount.toFixed(2)}</span>
+                      </div>
+                      {creditAmount > 0 && (
                         <div className="flex justify-between items-center text-sm">
-                          <span>Paid:</span>
-                          <span className="text-blue-600">${paidAmount.toFixed(2)}</span>
+                          <span>Credit:</span>
+                          <span className="text-red-600">${creditAmount.toFixed(2)}</span>
                         </div>
-                        {creditAmount > 0 && (
-                          <div className="flex justify-between items-center text-sm">
-                            <span>Credit:</span>
-                            <span className="text-red-600">${creditAmount.toFixed(2)}</span>
-                          </div>
-                        )}
-                        {creditReduction > 0 && (
-                          <div className="flex justify-between items-center text-sm">
-                            <span>Credit Reduction:</span>
-                            <span className="text-green-600">-${creditReduction.toFixed(2)}</span>
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
-                </>
+                      )}
+                      {creditReduction > 0 && (
+                        <div className="flex justify-between items-center text-sm">
+                          <span>Credit Reduction:</span>
+                          <span className="text-green-600">-${creditReduction.toFixed(2)}</span>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
               )}
               
               <Button 
