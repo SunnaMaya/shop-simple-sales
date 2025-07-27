@@ -12,6 +12,7 @@ import Expenses from './pages/Expenses';
 import Reports from './pages/Reports';
 import NotFound from './pages/NotFound';
 import PWAInstallPrompt from './components/PWAInstallPrompt';
+import { LanguageProvider } from './contexts/LanguageContext';
 
 function App() {
   const { user, loading } = useSupabaseAuth();
@@ -26,31 +27,33 @@ function App() {
 
   if (!user) {
     return (
-      <>
+      <LanguageProvider>
         <LoginForm />
         <Toaster />
-      </>
+      </LanguageProvider>
     );
   }
 
   return (
-    <Router>
-      <div className="min-h-screen bg-gray-50">
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/products" element={<Products />} />
-          <Route path="/customers" element={<Customers />} />
-          <Route path="/billing" element={<Billing />} />
-          <Route path="/bills" element={<Bills />} />
-          <Route path="/expenses" element={<Expenses />} />
-          <Route path="/reports" element={<Reports />} />
-          <Route path="/404" element={<NotFound />} />
-          <Route path="*" element={<Navigate to="/404" replace />} />
-        </Routes>
-        <PWAInstallPrompt />
-        <Toaster />
-      </div>
-    </Router>
+    <LanguageProvider>
+      <Router>
+        <div className="min-h-screen bg-gray-50">
+          <Routes>
+            <Route path="/" element={<Index />} />
+            <Route path="/products" element={<Products />} />
+            <Route path="/customers" element={<Customers />} />
+            <Route path="/billing" element={<Billing />} />
+            <Route path="/bills" element={<Bills />} />
+            <Route path="/expenses" element={<Expenses />} />
+            <Route path="/reports" element={<Reports />} />
+            <Route path="/404" element={<NotFound />} />
+            <Route path="*" element={<Navigate to="/404" replace />} />
+          </Routes>
+          <PWAInstallPrompt />
+          <Toaster />
+        </div>
+      </Router>
+    </LanguageProvider>
   );
 }
 

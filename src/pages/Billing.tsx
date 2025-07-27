@@ -6,6 +6,7 @@ import { useBills } from '../hooks/useBills';
 import { BillItem, Bill } from '../types';
 import Layout from '../components/Layout';
 import BillReceipt from '../components/BillReceipt';
+import CreditPaymentReceipt from '../components/CreditPaymentReceipt';
 import { Button } from '../components/ui/button';
 import { Label } from '../components/ui/label';
 import { Input } from '../components/ui/input';
@@ -14,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Badge } from '../components/ui/badge';
 import { Plus, Minus, ShoppingCart, Trash2, Receipt, Search, CreditCard } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const Billing = () => {
   const { products, loading: productsLoading } = useProducts();
@@ -25,9 +27,17 @@ const Billing = () => {
   const [paidAmount, setPaidAmount] = useState<number>(0);
   const [isCreatingBill, setIsCreatingBill] = useState(false);
   const [showReceipt, setShowReceipt] = useState(false);
+  const [showCreditReceipt, setShowCreditReceipt] = useState(false);
   const [currentBill, setCurrentBill] = useState<Bill | null>(null);
+  const [creditReceiptData, setCreditReceiptData] = useState<{
+    customerName: string;
+    currentCredit: number;
+    paidAmount: number;
+    remainingCredit: number;
+  } | null>(null);
   const [productSearchTerm, setProductSearchTerm] = useState('');
   const { toast } = useToast();
+  const { t } = useLanguage();
 
   const addProductToBill = (product: any) => {
     const existingItem = billItems.find(item => item.productId === product.id);
@@ -137,15 +147,25 @@ const Billing = () => {
       if (billItems.length === 0 && selectedCustomer && paidAmount > 0) {
         // This is a credit payment only
         const currentCredit = customer?.credit || 0;
-        const newCredit = Math.max(0, currentCredit - paidAmount);
+        const actualPaidAmount = Math.min(paidAmount, currentCredit);
+        const newCredit = Math.max(0, currentCredit - actualPaidAmount);
         
         await updateCustomer(selectedCustomer, {
           credit: newCredit
         });
 
+        // Show credit payment receipt
+        setCreditReceiptData({
+          customerName: customer?.name || 'Unknown Customer',
+          currentCredit: currentCredit,
+          paidAmount: actualPaidAmount,
+          remainingCredit: newCredit
+        });
+        setShowCreditReceipt(true);
+
         toast({
-          title: "Success",
-          description: `Credit payment successful! Credit reduced by $${paidAmount.toFixed(2)}`
+          title: t('creditPaymentSuccessful'),
+          description: `${t('creditReduction')}: $${actualPaidAmount.toFixed(2)}`
         });
 
         // Reset form
@@ -253,17 +273,17 @@ const Billing = () => {
   );
 
   return (
-    <Layout title="Create Bill">
+    <Layout title={t('createBill')}>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Products Section */}
         <div className="space-y-4">
-          <h3 className="text-lg font-semibold">Available Products</h3>
+          <h3 className="text-lg font-semibold">{t('availableProducts')}</h3>
           
           {/* Product Search */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
             <Input
-              placeholder="Search products..."
+              placeholder={t('search') + ' products...'}
               value={productSearchTerm}
               onChange={(e) => setProductSearchTerm(e.target.value)}
               className="pl-10"
@@ -314,14 +334,14 @@ const Billing = () => {
         <div className="space-y-4">
           <div className="flex items-center gap-2">
             <Receipt className="h-5 w-5" />
-            <h3 className="text-lg font-semibold">Current Bill</h3>
+            <h3 className="text-lg font-semibold">{t('currentBill')}</h3>
           </div>
           
           <Card>
             <CardHeader className="pb-3">
               <div className="space-y-3">
                 <div>
-                  <Label>Customer (Optional)</Label>
+                  <Label>{t('customerOptional')}</Label>
                   <Select value={selectedCustomer} onValueChange={setSelectedCustomer}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select customer or leave empty for walk-in" />
@@ -342,22 +362,22 @@ const Billing = () => {
                 </div>
                 
                 <div>
-                  <Label>Payment Method</Label>
+                  <Label>{t('paymentMethod')}</Label>
                   <Select value={paymentMethod} onValueChange={(value: 'Cash' | 'Credit' | 'Digital') => setPaymentMethod(value)}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Cash">Cash</SelectItem>
-                      <SelectItem value="Credit">Credit</SelectItem>
-                      <SelectItem value="Digital">Digital</SelectItem>
+                      <SelectItem value="Cash">{t('cash')}</SelectItem>
+                      <SelectItem value="Credit">{t('credit')}</SelectItem>
+                      <SelectItem value="Digital">{t('digital')}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
                 {selectedCustomer && (
                   <div>
-                    <Label>Paid Amount</Label>
+                    <Label>{t('paidAmount')}</Label>
                     <Input
                       type="number"
                       step="0.01"
@@ -487,6 +507,17 @@ const Billing = () => {
           onClose={() => {
             setShowReceipt(false);
             setCurrentBill(null);
+          }} 
+        />
+      )}
+
+      {/* Credit Payment Receipt Modal */}
+      {showCreditReceipt && creditReceiptData && (
+        <CreditPaymentReceipt 
+          {...creditReceiptData}
+          onClose={() => {
+            setShowCreditReceipt(false);
+            setCreditReceiptData(null);
           }} 
         />
       )}

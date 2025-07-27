@@ -5,6 +5,8 @@ import { Button } from './ui/button';
 import { LogOut, Store, Menu, X } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { useState } from 'react';
+import { useLanguage } from '../contexts/LanguageContext';
+import LanguageSelector from './LanguageSelector';
 
 interface LayoutProps {
   children: ReactNode;
@@ -15,6 +17,7 @@ const Layout = ({ children, title }: LayoutProps) => {
   const { logout, user } = useSupabaseAuth();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const { t } = useLanguage();
 
   const handleLogout = async () => {
     try {
@@ -25,13 +28,13 @@ const Layout = ({ children, title }: LayoutProps) => {
   };
 
   const navigationItems = [
-    { name: 'Dashboard', path: '/' },
-    { name: 'Products', path: '/products' },
-    { name: 'Customers', path: '/customers' },
-    { name: 'New Bill', path: '/billing' },
-    { name: 'Bills', path: '/bills' },
-    { name: 'Expenses', path: '/expenses' },
-    { name: 'Reports', path: '/reports' },
+    { name: t('dashboard'), path: '/' },
+    { name: t('products'), path: '/products' },
+    { name: t('customers'), path: '/customers' },
+    { name: t('billing'), path: '/billing' },
+    { name: t('bills'), path: '/bills' },
+    { name: t('expenses'), path: '/expenses' },
+    { name: t('reports'), path: '/reports' },
   ];
 
   const isActivePath = (path: string) => {
@@ -76,7 +79,8 @@ const Layout = ({ children, title }: LayoutProps) => {
             </nav>
 
             {/* User Menu and Mobile Menu Button */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
+              <LanguageSelector />
               <div className="hidden sm:flex items-center gap-2">
                 <span className="text-sm text-gray-600 truncate max-w-32">{user?.email}</span>
                 <Button
